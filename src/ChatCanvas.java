@@ -160,6 +160,10 @@ public class ChatCanvas extends Canvas implements MPChat, LangConstants, Runnabl
 	UIItem menuItem;
 	int[] menu;
 	int menuCurrent, menuCount;
+	int menuHeight;
+	int menuScroll;
+	int menuScrollTarget;
+	boolean menuFitsOnScreen;
 
 	String titleRender;
 
@@ -778,6 +782,10 @@ public class ChatCanvas extends Canvas implements MPChat, LangConstants, Runnabl
 			layoutStart = firstItem;
 			titleRender = null;
 			topButtonWidth = 0;
+			if (menuFocused) {
+				menuFitsOnScreen = h <= height;
+				menuScroll = 0;
+			}
 		}
 		width = w; height = h;
 
@@ -842,6 +850,24 @@ public class ChatCanvas extends Canvas implements MPChat, LangConstants, Runnabl
 						scrollTarget = -1;
 						animate = false;
 					}
+				}
+			}
+
+			if (menuFocused && !menuFitsOnScreen && menuScrollTarget != -1) {
+				if (slide(0, menuScroll, menuScrollTarget, deltaTime)) {
+					animate = true;
+				} else {
+					menuScroll = menuScrollTarget;
+					scrollTarget = -1;
+				}
+				if (menuScroll <= 0) {
+					menuScroll = 0;
+					menuScrollTarget = -1;
+					animate = false;
+				} else if (menuScroll >= contentHeight - clipHeight) {
+					menuScroll = contentHeight - clipHeight;
+					menuScrollTarget = -1;
+					animate = false;
 				}
 			}
 
@@ -1212,7 +1238,9 @@ public class ChatCanvas extends Canvas implements MPChat, LangConstants, Runnabl
 		// popup menu
 		if (menuAnimProgress != 0) {
 			skipRender = true;
-			int my = h - (int)menuAnimProgress;
+			if (menuScroll < 0) menuScroll = 0;
+			else if (menuScroll > menuHeight - h) menuScroll = menuHeight - h;
+			int my = h - (int)menuAnimProgress - menuScroll;
 			g.setColor(colors[COLOR_CHAT_MENU_BG]);
 			g.fillRect(0, my, w, (int)menuAnimProgress);
 			if (menu != null) {
@@ -1477,10 +1505,22 @@ public class ChatCanvas extends Canvas implements MPChat, LangConstants, Runnabl
 				if (menuCurrent-- == 0) {
 					menuCurrent = menuCount - 1;
 				}
+				if (!menuFitsOnScreen) {
+					int y = menuCurrent * (MP.medPlainFontHeight + 8) - menuScroll;
+					if (y < 40) {
+						menuScrollTarget = menuScroll - height / 5;
+					}
+				}
 				repaint = true;
 			} else if (game == Canvas.DOWN) {
 				if (menuCurrent++ == menuCount - 1) {
 					menuCurrent = 0;
+				}
+				if (!menuFitsOnScreen) {
+					int y = menuCurrent * (MP.medPlainFontHeight + 8) - menuScroll;
+					if (y > menuHeight - height - 40) {
+						menuScrollTarget = menuScroll + height / 5;
+					}
 				}
 				repaint = true;
 			} else if (key == -5 || game == Canvas.FIRE) {
@@ -1639,8 +1679,8 @@ public class ChatCanvas extends Canvas implements MPChat, LangConstants, Runnabl
 	protected void pointerDragged(int x, int y) {
 		if (keyboard != null && keyboard.pointerDragged(x, y)) return;
 		long now = System.currentTimeMillis();
-		if (contentPressed) {
-			if (longTap) {
+		if (contentPressed || (menuFocused && !menuFitsOnScreen)) {
+			if (longTap && !menuFocused) {
 				boolean d = y > pointerY;
 				if (heldItem == null) {
 					heldItem = pointedItem;
@@ -1677,7 +1717,11 @@ public class ChatCanvas extends Canvas implements MPChat, LangConstants, Runnabl
 //						dx2 += dragXHold;
 						dy2 += dragYHold;
 					}
-					if (draggingHorizontally || (!dragging && Math.abs(/*dy2*/dX) > Math.abs(dy2))) {
+					if (menuFocused) {
+						menuScroll += dy2;
+						if (kineticScroll * dy2 < 0) kineticScroll = 0;
+						lastDragDir = dy2 < 0 ? -1 : 1;
+					} else if (draggingHorizontally || (!dragging && Math.abs(/*dy2*/dX) > Math.abs(dy2))) {
 						if (!draggingHorizontally) {
 							focusItem(pointedItem, 0);
 						}
@@ -1709,8 +1753,6 @@ public class ChatCanvas extends Canvas implements MPChat, LangConstants, Runnabl
 					movesIdx = (movesIdx + 1) % moveSamples;
 				}
 			}
-		} else if (menuFocused) {
-			// TODO menu scroll
 		}
 		pointerX = x;
 		pointerY = y;
@@ -1720,19 +1762,30 @@ public class ChatCanvas extends Canvas implements MPChat, LangConstants, Runnabl
 	protected void pointerReleased(int x, int y) {
 		if (keyboard != null && keyboard.pointerReleased(x, y)) return;
 		long now = System.currentTimeMillis();
-		if (contentPressed) {
+		if (contentPressed || menuFocused) {
 			if (!longTap) {
 				if (!dragging || (dragged < 10 && Math.abs(x - pressX) < 4 && Math.abs(y - pressY) < 4)) {
 					if (kineticScroll != 0) {
 						kineticScroll = 0;
-					} else if (now - pressTime < 300 && pointedItem != null && pointedItem.focusable) {
-						focusItem(pointedItem, 0);
-						pointedItem.tap(x,
-								reverse ? y - (scroll - bottom - pointedItem.y + height - pointedItem.contentHeight)
-										: y - pointedItem.y - top + scroll,
-										false);
+					} else if (now - pressTime < 300) {
+						if (menuFocused) {
+							int my = height - (int)menuAnimProgress - menuScroll;
+							if (y < my || x < 20 || x > width - 20 || menu == null) {
+								closeMenu();
+								queueRepaint();
+							} else if (!longTap && now - pressTime < 300 && menuAnimTarget == -1) {
+								menuAction((y - my) / (MP.medPlainFontHeight + 8));
+							}
+						} else if (pointedItem != null && pointedItem.focusable) {
+							focusItem(pointedItem, 0);
+							pointedItem.tap(x,
+									reverse ? y - (scroll - bottom - pointedItem.y + height - pointedItem.contentHeight)
+											: y - pointedItem.y - top + scroll,
+									false);
+						}
 					}
 				} else if (draggingHorizontally && selected == 0) {
+					// swipe gestures
 					int d = pointerX - pressX;
 					if (d > 50) {
 						MP.midlet.commandAction(MP.backCmd, this);
@@ -1778,14 +1831,6 @@ public class ChatCanvas extends Canvas implements MPChat, LangConstants, Runnabl
 						}
 					}
 				}
-			}
-		} else if (menuFocused) {
-			int my = height - (int)menuAnimProgress;
-			if (y < my || x < 20 || x > width - 20 || menu == null) {
-				closeMenu();
-				queueRepaint();
-			} else if (!longTap && now - pressTime < 300 && menuAnimTarget == -1) {
-				menuAction((y - my) / (MP.medPlainFontHeight + 8));
 			}
 		} else if (touch && now - pressTime < 300) {
 			if (y < top) {
@@ -2194,6 +2239,9 @@ public class ChatCanvas extends Canvas implements MPChat, LangConstants, Runnabl
 			menuCount++;
 			h += MP.medPlainFontHeight + 8;
 		}
+		menuHeight = h;
+		menuFitsOnScreen = h <= height;
+		menuScroll = 0;
 		menuAnimTarget = h;
 
 		if (len != 0 && menu != null) {
