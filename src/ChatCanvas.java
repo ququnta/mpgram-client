@@ -162,7 +162,7 @@ public class ChatCanvas extends Canvas implements MPChat, LangConstants, Runnabl
 	int menuCurrent, menuCount;
 	int menuHeight;
 	int menuScroll;
-	int menuScrollTarget;
+	int menuScrollTarget = -1;
 	boolean menuFitsOnScreen;
 
 	String titleRender;
@@ -854,11 +854,11 @@ public class ChatCanvas extends Canvas implements MPChat, LangConstants, Runnabl
 			}
 
 			if (menuFocused && !menuFitsOnScreen && menuScrollTarget != -1) {
-				if (slide(0, menuScroll, menuScrollTarget, deltaTime)) {
+				if (slide(3, menuScroll, menuScrollTarget, deltaTime)) {
 					animate = true;
 				} else {
 					menuScroll = menuScrollTarget;
-					scrollTarget = -1;
+					menuScrollTarget = -1;
 				}
 				if (menuScroll <= 0) {
 					menuScroll = 0;
@@ -1238,9 +1238,14 @@ public class ChatCanvas extends Canvas implements MPChat, LangConstants, Runnabl
 		// popup menu
 		if (menuAnimProgress != 0) {
 			skipRender = true;
-			if (menuScroll < 0) menuScroll = 0;
-			else if (menuScroll > menuHeight - h) menuScroll = menuHeight - h;
-			int my = h - (int)menuAnimProgress - menuScroll;
+			int my;
+			if (menuFitsOnScreen) {
+				my = h - (int)menuAnimProgress;
+			} else {
+				if (menuScroll < 0) menuScroll = 0;
+				else if (menuScroll > menuHeight - h) menuScroll = menuHeight - h;
+				my = menuHeight - (int)menuAnimProgress - menuScroll;
+			}
 			g.setColor(colors[COLOR_CHAT_MENU_BG]);
 			g.fillRect(0, my, w, (int)menuAnimProgress);
 			if (menu != null) {
@@ -1353,8 +1358,10 @@ public class ChatCanvas extends Canvas implements MPChat, LangConstants, Runnabl
 			scroll = (int) val;
 		} else if (mode == 1) {
 			bottom = (int) (bottomAnimProgress = val);
-		} else /* (mode == 2) */ {
+		} else if (mode == 2) {
 			menuAnimProgress = val;
+		} else /*if (mode == 3)*/ {
+			menuScroll = (int) val;
 		}
 
 		return !MP.fastScrolling;
@@ -1504,23 +1511,21 @@ public class ChatCanvas extends Canvas implements MPChat, LangConstants, Runnabl
 			if (game == Canvas.UP) {
 				if (menuCurrent-- == 0) {
 					menuCurrent = menuCount - 1;
-				}
-				if (!menuFitsOnScreen) {
-					int y = menuCurrent * (MP.medPlainFontHeight + 8) - menuScroll;
-					if (y < 40) {
-						menuScrollTarget = menuScroll - height / 5;
+					if (!menuFitsOnScreen) {
+						menuScrollTarget = menuHeight - height;
 					}
+				} else if (!menuFitsOnScreen && menuCurrent * (MP.medPlainFontHeight + 8) - menuScroll < 30) {
+					menuScrollTarget = menuScroll - height / 5;
 				}
 				repaint = true;
 			} else if (game == Canvas.DOWN) {
 				if (menuCurrent++ == menuCount - 1) {
 					menuCurrent = 0;
-				}
-				if (!menuFitsOnScreen) {
-					int y = menuCurrent * (MP.medPlainFontHeight + 8) - menuScroll;
-					if (y > menuHeight - height - 40) {
-						menuScrollTarget = menuScroll + height / 5;
+					if (!menuFitsOnScreen) {
+						menuScrollTarget = 0;
 					}
+				} else if (!menuFitsOnScreen && menuCurrent * (MP.medPlainFontHeight + 8) - menuScroll > height - 30) {
+					menuScrollTarget = menuScroll + height / 5;
 				}
 				repaint = true;
 			} else if (key == -5 || game == Canvas.FIRE) {
@@ -1769,7 +1774,7 @@ public class ChatCanvas extends Canvas implements MPChat, LangConstants, Runnabl
 						kineticScroll = 0;
 					} else if (now - pressTime < 300) {
 						if (menuFocused) {
-							int my = height - (int)menuAnimProgress - menuScroll;
+							int my = (menuFitsOnScreen ? height : (menuHeight - menuScroll)) - (int)menuAnimProgress;
 							if (y < my || x < 20 || x > width - 20 || menu == null) {
 								closeMenu();
 								queueRepaint();
