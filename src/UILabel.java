@@ -29,8 +29,13 @@ import javax.microedition.lcdui.Graphics;
 
 public class UILabel extends UIItem {
 
-	Vector parsed = new Vector(); // Object[] {text, font, url }
-	Vector render; // Object[] { text, font, url, int[] {x, y, width, height} }
+	static final int
+			STYLE_STRIKETHROUGH = 1,
+			STYLE_SPOILER = 2, // TODO
+			STYLE_SPOILER_UNHIDDEN = 4;
+
+	Vector parsed = new Vector(); // Object[] {text, font, url, int[] {style} }
+	Vector render; // Object[] { text, font, url, int[] {x, y, width, height, style} }
 	Vector urls; // Object[] { url, Vector(elements of render) }
 	Vector selectedParts; String selectedUrl;
 
@@ -43,7 +48,7 @@ public class UILabel extends UIItem {
 
 	public UILabel(String text, Font font, String url) {
 		(this.parsed = new Vector())
-		.addElement(new Object[] { text, font, url });
+		.addElement(new Object[] { text, font, url, null });
 	}
 
 	public UILabel(String text, JSONArray entities) {
@@ -51,9 +56,9 @@ public class UILabel extends UIItem {
 		MP.wrapRichText(this, null, text, entities, 0);
 	}
 
-	void append(String text, Font font, String url) {
+	void append(String text, Font font, String url, int style) {
 		if (url != null) focusable = true;
-		parsed.addElement(new Object[] { text, font, url });
+		parsed.addElement(new Object[] { text, font, url, style == 0 ? null : new int[] { style } });
 		requestLayout();
 	}
 
@@ -89,6 +94,10 @@ public class UILabel extends UIItem {
 			}
 			g.setFont(font);
 			g.drawString(text, tx, ty, 0);
+			if ((pos[4] & STYLE_STRIKETHROUGH) != 0) {
+				int ly = ty + (th >> 1) + 1;
+				g.drawLine(tx, ly, tx + tw, ly);
+			}
 			if (focus && selectedParts != null && selectedParts.contains(obj)) {
 				g.setColor(focusColor);
 				g.drawRect(tx, ty, tw, th);
@@ -96,7 +105,6 @@ public class UILabel extends UIItem {
 			} else if (obj[2] != null) {
 				g.setColor(color);
 			}
-			// TODO strikethrough style
 		}
 	}
 
@@ -129,6 +137,7 @@ public class UILabel extends UIItem {
 			String text = (String) e[0];
 			Font font = (Font) e[1];
 			String url = (String) e[2];
+			int style = e[3] == null ? 0 : ((int[]) e[3])[0];
 
 			fh = font.getHeight();
 			if (text == null || "\n".equals(text)) {
@@ -162,23 +171,23 @@ public class UILabel extends UIItem {
 					tw = font.stringWidth(text = ellipsis(text, font, width - x));
 					end = true;
 				}
-				res.addElement(new Object[] { text, font, url, new int[] {x, y, tw, fh} });
+				res.addElement(new Object[] { text, font, url, new int[] {x, y, tw, fh, style} });
 				x += tw;
 				if (end) break;
 			} else if (text.indexOf('\n', ch) == -1) {
-				split(text, font, url, width, x, y, idx, mw, ch, sl, fh, res, center, out);
+				split(text, font, url, width, x, y, idx, mw, ch, sl, fh, res, center, style, out);
 				x = out[0]; y = out[1]; idx = out[2]; mw = out[3];
 			} else {
 				int j = ch;
 				for (int i = ch; i < sl; ++i) {
 					if ((c = text.charAt(i)) == '\n') {
-						split(text, font, url, width, x, y, idx, mw, j, i, fh, res, center, out);
+						split(text, font, url, width, x, y, idx, mw, j, i, fh, res, center, style, out);
 						x = 0; y = out[1] + fh; idx = out[2]; mw = out[3];
 						j = i + 1;
 					}
 				}
 				if (j != sl) {
-					split(text, font, url, width, x, y, idx, mw, j, sl, fh, res, center, out);
+					split(text, font, url, width, x, y, idx, mw, j, sl, fh, res, center, style, out);
 					x = out[0]; y = out[1]; idx = out[2]; mw = out[3];
 				}
 			}
@@ -318,7 +327,7 @@ public class UILabel extends UIItem {
 		return "...";
 	}
 
-	private static void split(String text, Font font, String url, int width, int x, int y, int idx, int mw, int ch, int sl, int fh, Vector res, boolean center, int[] out) {
+	private static void split(String text, Font font, String url, int width, int x, int y, int idx, int mw, int ch, int sl, int fh, Vector res, boolean center, int style, int[] out) {
 		int dy = 0;
 		if (res.size() != 0 && x != 0) {
 			Font f = font;
@@ -334,7 +343,7 @@ public class UILabel extends UIItem {
 			if (x + ew < width) {
 				String t = text.substring(ch, sl);
 				if (t.length() > 3 || t.trim().length() != 0) {
-					res.addElement(new Object[] { t, font, url, new int[] {x, y + dy, ew, fh} });
+					res.addElement(new Object[] { t, font, url, new int[] {x, y + dy, ew, fh, style} });
 					idx ++;
 				}
 				x += ew;
@@ -352,7 +361,7 @@ public class UILabel extends UIItem {
 										x = centerRow(width, tw, x, y, res);
 									}
 									if (t.length() > 3 || t.trim().length() != 0) {
-										res.addElement(new Object[] { t, font, url, new int[] {x, y + dy, tw, fh} });
+										res.addElement(new Object[] { t, font, url, new int[] {x, y + dy, tw, fh, style} });
 										idx ++;
 									}
 									mw = Math.max(mw, x + tw);
@@ -369,7 +378,7 @@ public class UILabel extends UIItem {
 								x = centerRow(width, tw, x, y, res);
 							}
 							if (t.length() > 3 || t.trim().length() != 0) {
-								res.addElement(new Object[] { t, font, url, new int[] {x, y + dy, tw, fh} });
+								res.addElement(new Object[] { t, font, url, new int[] {x, y + dy, tw, fh, style} });
 								idx ++;
 							}
 							mw = Math.max(mw, x + tw);
@@ -382,7 +391,7 @@ public class UILabel extends UIItem {
 					String t = text.substring(ch, sl);
 					int tw = font.stringWidth(t);
 					if (t.length() > 3 || t.trim().length() != 0) {
-						res.addElement(new Object[] { t, font, url, new int[] {x, y + dy, tw, fh} });
+						res.addElement(new Object[] { t, font, url, new int[] {x, y + dy, tw, fh, style} });
 						idx ++;
 					}
 					x += tw;

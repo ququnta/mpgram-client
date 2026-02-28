@@ -178,7 +178,7 @@ public class UIMessage extends UIItem implements LangConstants {
 				} else if ("ChatEditTitle".equals(type)) {
 					t = MP.L[LNameChanged_Action].concat(act.getString("t", ""));
 				} else {
-					label.append(name, MP.smallBoldFont, "t.me/".concat(fromId));
+					label.append(name, MP.smallBoldFont, "t.me/".concat(fromId), 0);
 					if ("PinMessage".equals(type)) {
 						t = MP.L[LPinnedMessage_Action];
 					} else if ("ChatJoinedByLink".equals(type)) {
@@ -190,20 +190,20 @@ public class UIMessage extends UIItem implements LangConstants {
 							if (fromId.equals(user)) {
 								t = MP.L["ChatAddUser".equals(type) ? LJoined_Action : LLeft_Action];
 							} else {
-								label.append(MP.L["ChatAddUser".equals(type) ? LAdded_Action : LRemoved_Action], MP.smallPlainFont, null);
-								label.append(" ", MP.smallPlainFont, null);
-								label.append(MP.getName(user, false), MP.smallBoldFont, "t.me/".concat(user));
+								label.append(MP.L["ChatAddUser".equals(type) ? LAdded_Action : LRemoved_Action], MP.smallPlainFont, null, 0);
+								label.append(" ", MP.smallPlainFont, null, 0);
+								label.append(MP.getName(user, false), MP.smallBoldFont, "t.me/".concat(user), 0);
 								break l;
 							}
 						} else {
-							label.append(MP.L[LAction], MP.smallPlainFont, null);
+							label.append(MP.L[LAction], MP.smallPlainFont, null, 0);
 							break l;
 						}
 					}
 				}
 
 				if (t != null) {
-					label.append(t, MP.smallPlainFont, null);
+					label.append(t, MP.smallPlainFont, null, 0);
 				}
 			}
 			label.container = this;
@@ -1272,8 +1272,6 @@ public class UIMessage extends UIItem implements LangConstants {
 			focusChild.lostFocus();
 			focusChild = null;
 		}
-
-		// TODO scroll
 
 		if (subFocusLength != 0) {
 			if (subFocusLength != 1 || subFocus[0] != FOCUS_SENDER || !hideName) {

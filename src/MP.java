@@ -6596,6 +6596,13 @@ public class MP extends MIDlet
 		}
 		text = sb.toString();
 		Font f = getFont(state);
+		int style = 0;
+		if (state[RT_STRIKE] != 0) {
+			style |= UILabel.STYLE_STRIKETHROUGH;
+		}
+		if (state[RT_SPOILER] != 0) {
+			style |= UILabel.STYLE_SPOILER;
+		}
 		StringItem s;
 
 		// find links
@@ -6635,9 +6642,9 @@ public class MP extends MIDlet
 //#ifndef NO_CHAT_CANVAS
 						if (form instanceof UILabel) {
 							if (i != 0) {
-								((UILabel) form).append(text.substring(0, j), f, null);
+								((UILabel) form).append(text.substring(0, j), f, null, style);
 							}
-							((UILabel) form).append(text.substring(j, k), f, null);
+							((UILabel) form).append(text.substring(j, k), f, null, style);
 						} else
 //#endif
 						{
@@ -6675,9 +6682,9 @@ public class MP extends MIDlet
 //#ifndef NO_CHAT_CANVAS
 						if (form instanceof UILabel) {
 							if (i != 0) {
-								((UILabel) form).append(text.substring(0, i), f, null);
+								((UILabel) form).append(text.substring(0, i), f, null, style);
 							}
-							((UILabel) form).append(text.substring(i, k), f, null);
+							((UILabel) form).append(text.substring(i, k), f, null, style);
 						} else
 //#endif
 						{
@@ -6704,7 +6711,7 @@ public class MP extends MIDlet
 
 //#ifndef NO_CHAT_CANVAS
 		if (form instanceof UILabel) {
-			((UILabel) form).append(text, f, state != null && state[RT_URL] != 0 ? richTextUrl : null);
+			((UILabel) form).append(text, f, state != null && state[RT_URL] != 0 ? richTextUrl : null, style);
 		} else
 //#endif
 		{
